@@ -1,5 +1,6 @@
 import arcpy
 import os
+import time
 import zipfile
 from datetime import datetime
 from arcpy import env
@@ -13,7 +14,7 @@ temp_dir = os.path.join(env.workspace, "temp")
 if not os.path.exists(temp_dir):
     os.makedirs(temp_dir)
 
-# --- Cleanup: remove old temp shapefiles and lock files ---
+# --- Cleanup: Remove old shapefiles and lock files ---
 for fname in os.listdir(temp_dir):
     if fname.lower().endswith((".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".lock")):
         try:
@@ -21,16 +22,36 @@ for fname in os.listdir(temp_dir):
         except Exception as e:
             print(f"Could not delete {fname}: {e}")
 
-# Input feature class paths (SDE)
+# Define shapefile base names
+point_base = "AddressPoints"
+polygon_base = "Parcels"
+point_shp = os.path.join(temp_dir, point_base + ".shp")
+polygon_shp = os.path.join(temp_dir, polygon_base + ".shp")
+
+# Delete specific shapefiles if they already exist
+def delete_shapefile(base_name):
+    extensions = [".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".lock"]
+    for ext in extensions:
+        fpath = os.path.join(temp_dir, base_name + ext)
+        if os.path.exists(fpath):
+            try:
+                os.remove(fpath)
+            except Exception as e:
+                print(f"Could not delete {fpath}: {e}")
+
+delete_shapefile(point_base)
+delete_shapefile(polygon_base)
+
+# Wait for file locks to release
+time.sleep(2)
+
+# Input SDE paths
 point_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.SDE.AddressRelated\EntGDB.SDE.AddressPoints"
 polygon_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.sde.VWPARCEL"
 
 # Export to shapefiles
-point_shp = os.path.join(temp_dir, "AddressPoints.shp")
-polygon_shp = os.path.join(temp_dir, "Parcels.shp")
-
-arcpy.conversion.FeatureClassToFeatureClass(point_fc, temp_dir, "AddressPoints.shp")
-arcpy.conversion.FeatureClassToFeatureClass(polygon_fc, temp_dir, "Parcels.shp")
+arcpy.conversion.FeatureClassToFeatureClass(point_fc, temp_dir, point_base + ".shp")
+arcpy.conversion.FeatureClassToFeatureClass(polygon_fc, temp_dir, polygon_base + ".shp")
 
 # Step 1: Spatial Join
 spatial_join_fc = os.path.join(temp_dir, "Temp_SpatialJoin.shp")
@@ -75,7 +96,7 @@ arcpy.management.CalculateField(
     expression_type="PYTHON3"
 )
 
-# Step 5: Zip the final shapefile and its components
+# Step 5: Zip the final shapefile and components
 zip_path = os.path.join(env.workspace, f"LPC_CodeRED_{today_str}.zip")
 shapefile_components = [f for f in os.listdir(env.workspace) if f.startswith(f"LPC_CodeRED_{today_str}.")]
 
