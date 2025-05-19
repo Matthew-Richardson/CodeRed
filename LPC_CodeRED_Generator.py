@@ -96,9 +96,12 @@ arcpy.management.CalculateField(
     expression_type="PYTHON3"
 )
 
-# Step 5: Zip the final shapefile and components
+# Step 5: Zip the final shapefile and components (excluding .lock)
 zip_path = os.path.join(env.workspace, f"LPC_CodeRED_{today_str}.zip")
-shapefile_components = [f for f in os.listdir(env.workspace) if f.startswith(f"LPC_CodeRED_{today_str}.")]
+shapefile_components = [
+    f for f in os.listdir(env.workspace)
+    if f.startswith(f"LPC_CodeRED_{today_str}.") and not f.endswith(".lock")
+]
 
 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
     for f in shapefile_components:
