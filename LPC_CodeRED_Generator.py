@@ -9,53 +9,62 @@ from arcpy import env
 env.workspace = r"T:\Richardsonm\OEM_CodeRED"
 env.overwriteOutput = True
 
+# Function to safely delete files with retry logic
+def try_delete(file_path, retries=5, wait=2):
+    for attempt in range(retries):
+        try:
+            os.remove(file_path)
+            return True
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed to delete {os.path.basename(file_path)}: {e}")
+            time.sleep(wait)
+    print(f"❌ Failed to delete {file_path} after {retries} attempts.")
+    return False
+
 # --- Clean up old LPC_CodeRED outputs and zips in workspace ---
 for fname in os.listdir(env.workspace):
     if fname.startswith("LPC_CodeRED_") and fname.lower().endswith((
         ".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".zip", ".lock"
     )):
-        try:
-            os.remove(os.path.join(env.workspace, fname))
-        except Exception as e:
-            print(f"Could not delete {fname}: {e}")
+        fpath = os.path.join(env.workspace, fname)
+        try_delete(fpath)
+
+# Prepare output file name
+today_str = datetime.today().strftime("%Y%m%d")
+output_name = f"LPC_CodeRED_{today_str}.shp"
+final_output = os.path.join(env.workspace, output_name)
 
 # Temp shapefile output directory
 temp_dir = os.path.join(env.workspace, "temp")
 if not os.path.exists(temp_dir):
     os.makedirs(temp_dir)
 
-# --- Cleanup: Remove old shapefiles and lock files ---
+# --- Clean up temp shapefiles ---
 for fname in os.listdir(temp_dir):
     if fname.lower().endswith((".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".lock")):
-        try:
-            os.remove(os.path.join(temp_dir, fname))
-        except Exception as e:
-            print(f"Could not delete {fname}: {e}")
+        fpath = os.path.join(temp_dir, fname)
+        try_delete(fpath)
 
-# Define shapefile base names
-point_base = "AddressPoints"
-polygon_base = "Parcels"
-point_shp = os.path.join(temp_dir, point_base + ".shp")
-polygon_shp = os.path.join(temp_dir, polygon_base + ".shp")
-
-# Delete specific shapefiles if they already exist
+# Helper function to delete all components of a shapefile
 def delete_shapefile(base_name):
     extensions = [".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".lock"]
     for ext in extensions:
         fpath = os.path.join(temp_dir, base_name + ext)
         if os.path.exists(fpath):
-            try:
-                os.remove(fpath)
-            except Exception as e:
-                print(f"Could not delete {fpath}: {e}")
+            try_delete(fpath)
 
+# Define base names for temp shapefiles
+point_base = "AddressPoints"
+polygon_base = "Parcels"
+point_shp = os.path.join(temp_dir, point_base + ".shp")
+polygon_shp = os.path.join(temp_dir, polygon_base + ".shp")
+
+# Extra cleanup of these named shapefiles
 delete_shapefile(point_base)
 delete_shapefile(polygon_base)
-
-# Wait for file locks to release
 time.sleep(2)
 
-# Input SDE paths
+# Input SDE feature classes
 point_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.SDE.AddressRelated\EntGDB.SDE.AddressPoints"
 polygon_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.sde.VWPARCEL"
 
@@ -76,22 +85,15 @@ arcpy.analysis.SpatialJoin(
     match_option="WITHIN"
 )
 
-# Step 2: Remove unwanted fields (shapefile-safe names)
+# Step 2: Remove unwanted fields
 keep_fields = ["SITE_DR", "SITE_ST", "SITE_MD", "SITE_UNIT", "SITE_NUM", "LABEL_TYPE", "PROPERTY_A", "SITE_CITY", "SITE_ZIP", "STATE_CO"]
 all_fields = [f.name for f in arcpy.ListFields(spatial_join_fc)]
 drop_fields = [f for f in all_fields if f not in keep_fields and f not in ("FID", "Shape")]
 
 arcpy.management.DeleteField(spatial_join_fc, drop_fields)
 
-# Step 3: Reproject and save final shapefile
-today_str = datetime.today().strftime("%Y%m%d")
-output_name = f"LPC_CodeRED_{today_str}.shp"
-final_output = os.path.join(env.workspace, output_name)
-output_sr = arcpy.SpatialReference(4269)  # NAD83
-
-if arcpy.Exists(final_output):
-    arcpy.management.Delete(final_output)
-
+# Step 3: Reproject to NAD83 and save to output shapefile
+output_sr = arcpy.SpatialReference(4269)
 arcpy.management.Project(spatial_join_fc, final_output, output_sr)
 
 # Step 4: Add 'State' field and populate with 'CO'
@@ -106,7 +108,7 @@ arcpy.management.CalculateField(
     expression_type="PYTHON3"
 )
 
-# Step 5: Zip the final shapefile and components (excluding .lock)
+# Step 5: Zip the final shapefile and components (excluding .lock files)
 zip_path = os.path.join(env.workspace, f"LPC_CodeRED_{today_str}.zip")
 shapefile_components = [
     f for f in os.listdir(env.workspace)
