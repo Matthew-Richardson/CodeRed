@@ -10,6 +10,9 @@ point_fc = "AddressPoints"
 polygon_fc = "EntGDB.sde.VWPARCEL"  # or Parcels, Zoning, etc.
 output_fc = "Joined_Addresses"
 
+print(arcpy.Exists(point_fc))   # Should return True
+print(arcpy.Exists(polygon_fc)) # Should return True
+
 # Step 1: Spatial Join
 spatial_join_fc = "Temp_SpatialJoin"
 arcpy.analysis.SpatialJoin(
