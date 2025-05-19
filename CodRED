@@ -1,22 +1,31 @@
 import arcpy
 import os
-from arcpy import env
+import zipfile
 from datetime import datetime
+from arcpy import env
 
 # Set environment
 env.workspace = r"T:\Richardsonm\OEM_CodeRED"
 env.overwriteOutput = True
 
 # Temp shapefile output directory
-temp_dir = r"T:\Richardsonm\OEM_CodeRED\temp"
-if not arcpy.Exists(temp_dir):
+temp_dir = os.path.join(env.workspace, "temp")
+if not os.path.exists(temp_dir):
     os.makedirs(temp_dir)
 
-# Input feature class paths
+# --- Cleanup: remove old temp shapefiles and lock files ---
+for fname in os.listdir(temp_dir):
+    if fname.lower().endswith((".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".lock")):
+        try:
+            os.remove(os.path.join(temp_dir, fname))
+        except Exception as e:
+            print(f"Could not delete {fname}: {e}")
+
+# Input feature class paths (SDE)
 point_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.SDE.AddressRelated\EntGDB.SDE.AddressPoints"
 polygon_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.sde.VWPARCEL"
 
-# Export to shapefiles (workaround for SDE errors)
+# Export to shapefiles
 point_shp = os.path.join(temp_dir, "AddressPoints.shp")
 polygon_shp = os.path.join(temp_dir, "Parcels.shp")
 
@@ -36,15 +45,14 @@ arcpy.analysis.SpatialJoin(
     match_option="WITHIN"
 )
 
-# Step 2: Remove Unwanted Fields (shapefile field limit = 10 chars)
+# Step 2: Remove unwanted fields (shapefile-safe names)
 keep_fields = ["SITE_DR", "SITE_ST", "SITE_MD", "SITE_UNIT", "SITE_NUM", "LABEL_TYPE", "PROPERTY_A", "SITE_CITY", "SITE_ZIP", "STATE_CO"]
 all_fields = [f.name for f in arcpy.ListFields(spatial_join_fc)]
 drop_fields = [f for f in all_fields if f not in keep_fields and f not in ("FID", "Shape")]
 
-# Delete unwanted fields
 arcpy.management.DeleteField(spatial_join_fc, drop_fields)
 
-# Step 3: Reproject and output as LPC_CodeRED_YYYYMMDD.shp
+# Step 3: Reproject and save final shapefile
 today_str = datetime.today().strftime("%Y%m%d")
 output_name = f"LPC_CodeRED_{today_str}.shp"
 final_output = os.path.join(env.workspace, output_name)
@@ -67,4 +75,14 @@ arcpy.management.CalculateField(
     expression_type="PYTHON3"
 )
 
-print("Processing complete. Final geolocator shapefile saved to:", final_output)
+# Step 5: Zip the final shapefile and its components
+zip_path = os.path.join(env.workspace, f"LPC_CodeRED_{today_str}.zip")
+shapefile_components = [f for f in os.listdir(env.workspace) if f.startswith(f"LPC_CodeRED_{today_str}.")]
+
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+    for f in shapefile_components:
+        zipf.write(os.path.join(env.workspace, f), f)
+
+print("✅ Processing complete.")
+print(f"🗂️  Final shapefile: {final_output}")
+print(f"📦 Zipped output: {zip_path}")
