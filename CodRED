@@ -16,7 +16,7 @@ arcpy.analysis.SpatialJoin(
     target_features=point_fc,
     join_features=polygon_fc,
     out_feature_class=spatial_join_fc,
-    join_type="KEEP_COMMON",  # or KEEP_ALL
+    join_type="KEEP_ALL",  # or KEEP_ALL
     match_option="WITHIN"
 )
 
