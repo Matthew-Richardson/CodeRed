@@ -12,8 +12,8 @@ if not arcpy.Exists(temp_dir):
     os.makedirs(temp_dir)
 
 # Input feature class paths
-point_fc = C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.SDE.AddressRelated\EntGDB.SDE.AddressPoints
-polygon_fc = "C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.sde.VWPARCEL"
+point_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.SDE.AddressRelated\EntGDB.SDE.AddressPoints"
+polygon_fc = r"C:\Users\RichardsonMD\AppData\Roaming\Esri\ArcGISPro\Favorites\SQLDB4GIS.sde\EntGDB.sde.VWPARCEL"
 
 # Export to shapefiles (workaround for SDE errors)
 point_shp = os.path.join(temp_dir, "AddressPoints.shp")
