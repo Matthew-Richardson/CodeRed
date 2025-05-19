@@ -1,6 +1,7 @@
 import arcpy
 import os
 from arcpy import env
+from datetime import datetime
 
 # Set environment
 env.workspace = r"T:\Richardsonm\OEM_CodeRED"
@@ -35,7 +36,7 @@ arcpy.analysis.SpatialJoin(
     match_option="WITHIN"
 )
 
-# Step 2: Remove Unwanted Fields (must use field names ≤10 characters for shapefiles)
+# Step 2: Remove Unwanted Fields (shapefile field limit = 10 chars)
 keep_fields = ["SITE_DR", "SITE_ST", "SITE_MD", "SITE_UNIT", "SITE_NUM", "LABEL_TYPE", "PROPERTY_A", "SITE_CITY", "SITE_ZIP", "STATE_CO"]
 all_fields = [f.name for f in arcpy.ListFields(spatial_join_fc)]
 drop_fields = [f for f in all_fields if f not in keep_fields and f not in ("FID", "Shape")]
@@ -43,13 +44,27 @@ drop_fields = [f for f in all_fields if f not in keep_fields and f not in ("FID"
 # Delete unwanted fields
 arcpy.management.DeleteField(spatial_join_fc, drop_fields)
 
-# Step 3: Reproject to GDB (avoid shapefile projection issues)
-gdb_output = os.path.join(env.workspace, "Final_Geolocator_Input")
+# Step 3: Reproject and output as LPC_CodeRED_YYYYMMDD.shp
+today_str = datetime.today().strftime("%Y%m%d")
+output_name = f"LPC_CodeRED_{today_str}.shp"
+final_output = os.path.join(env.workspace, output_name)
 output_sr = arcpy.SpatialReference(4269)  # NAD83
 
-if arcpy.Exists(gdb_output):
-    arcpy.management.Delete(gdb_output)
+if arcpy.Exists(final_output):
+    arcpy.management.Delete(final_output)
 
-arcpy.management.Project(spatial_join_fc, gdb_output, output_sr)
+arcpy.management.Project(spatial_join_fc, final_output, output_sr)
 
-print("Processing complete. Final geolocator input saved to:", gdb_output)
+# Step 4: Add 'State' field and populate with 'CO'
+state_field = "State"
+if state_field not in [f.name for f in arcpy.ListFields(final_output)]:
+    arcpy.management.AddField(final_output, state_field, "TEXT", field_length=2)
+
+arcpy.management.CalculateField(
+    in_table=final_output,
+    field=state_field,
+    expression="'CO'",
+    expression_type="PYTHON3"
+)
+
+print("Processing complete. Final geolocator shapefile saved to:", final_output)
