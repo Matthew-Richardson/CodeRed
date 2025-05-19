@@ -9,6 +9,16 @@ from arcpy import env
 env.workspace = r"T:\Richardsonm\OEM_CodeRED"
 env.overwriteOutput = True
 
+# --- Clean up old LPC_CodeRED outputs and zips in workspace ---
+for fname in os.listdir(env.workspace):
+    if fname.startswith("LPC_CodeRED_") and fname.lower().endswith((
+        ".shp", ".shx", ".dbf", ".prj", ".sbn", ".sbx", ".cpg", ".xml", ".zip", ".lock"
+    )):
+        try:
+            os.remove(os.path.join(env.workspace, fname))
+        except Exception as e:
+            print(f"Could not delete {fname}: {e}")
+
 # Temp shapefile output directory
 temp_dir = os.path.join(env.workspace, "temp")
 if not os.path.exists(temp_dir):
