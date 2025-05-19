@@ -1,0 +1,37 @@
+import arcpy
+from arcpy import env
+
+# Set environment
+env.workspace = r"T:\Richardsonm\OEM_CodeRED"
+env.overwriteOutput = True
+
+# Input layers
+point_fc = "AddressPoints"
+polygon_fc = "EntGDB.sde.VWPARCEL"  # or Parcels, Zoning, etc.
+output_fc = "Joined_Addresses"
+
+# Step 1: Spatial Join
+spatial_join_fc = "Temp_SpatialJoin"
+arcpy.analysis.SpatialJoin(
+    target_features=point_fc,
+    join_features=polygon_fc,
+    out_feature_class=spatial_join_fc,
+    join_type="KEEP_COMMON",  # or KEEP_ALL
+    match_option="WITHIN"
+)
+
+# Step 2: Remove Unwanted Fields
+keep_fields = ["SITE_DR", "SITE_ST", "SITE_MD", "SITE_UNIT", "SITE_NUM", "LABEL_TYPE", "PROPERTY_A", "SITE_CITY", "SITE_ZIP", "STATE_CO"]  # Adjust as needed
+all_fields = [f.name for f in arcpy.ListFields(spatial_join_fc)]
+drop_fields = [f for f in all_fields if f not in keep_fields]
+
+clean_fc = "Cleaned_Addresses"
+arcpy.management.DeleteField(spatial_join_fc, drop_fields)
+arcpy.management.CopyFeatures(spatial_join_fc, clean_fc)
+
+# Step 3: Reproject
+projected_fc = "Final_Geolocator_Input"
+output_sr = arcpy.SpatialReference(4269)  # NAD83 (adjust to match your locator needs)
+arcpy.management.Project(clean_fc, projected_fc, output_sr)
+
+print("Processing complete. Output saved as:", projected_fc)
